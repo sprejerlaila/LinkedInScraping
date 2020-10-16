@@ -3,16 +3,19 @@ from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 
 import time
+import json
 
 from webdriver_manager.chrome import ChromeDriverManager
 
 from utils import Profile, ScrapingException, is_url_valid, HumanCheckException, wait_for_loading, wait_for_scrolling, \
     Job, AuthenticationException, Location, Company, ScrapingResult
 
+import pandas as pd
+
 
 class Scraper(Thread):
 
-    def __init__(self, linkedin_username, linkedin_password, profiles_urls, headless=False):
+    def __init__(self, linkedin_username, linkedin_password, profiles_urls, headless=False, output_file_name = "scrape_results.csv", bullhorn_ids = None):
 
         Thread.__init__(self)
 
@@ -26,10 +29,12 @@ class Scraper(Thread):
 
         self.profiles_urls = profiles_urls
 
-        self.results = []
-
         self.linkedin_username = linkedin_username
         self.linkedin_password = linkedin_password
+
+        self.output_file_name = output_file_name
+        print(self.output_file_name)
+        self.bullhorn_ids = bullhorn_ids
 
     def run(self):
 
@@ -48,14 +53,29 @@ class Scraper(Thread):
             time.sleep(40)
             raise AuthenticationException()
 
-        for linkedin_url in self.profiles_urls:
+        for idx, linkedin_url in enumerate(self.profiles_urls):
 
-            self.results.append(
-                ScrapingResult(
-                    linkedin_url,
-                    self.scrape_profile(linkedin_url)
-                )
-            )
+            print("scraping profile: ", linkedin_url)
+            scrape_results = self.scrape_profile(linkedin_url)
+
+            if not scrape_results:
+                with open(self.output_file_name + 'error_bullhorn_ids.csv', 'a') as f:
+                     f.write("%s\n" % self.bullhorn_ids[idx])
+
+                print("waiting 10 seconds")
+                time.sleep(10)
+
+            else:
+    
+                scrape_results['id'] = self.bullhorn_ids[idx]
+                
+                with open(self.output_file_name + 'scraped_profiles.json', 'a') as fp:
+                        json.dump(scrape_results, fp)
+
+                        fp.write('\n')
+
+                with open(self.output_file_name + 'collected_bullhorn_ids.csv', 'a') as f:
+                        f.write("%s\n" % self.bullhorn_ids[idx])
 
         # Closing the Chrome instance
         self.browser.quit()
@@ -66,9 +86,11 @@ class Scraper(Thread):
             profile = self.__scrape_profile(linkedin_url)
 
         except HumanCheckException:
-            print("Please solve the captcha.")
-            print("Another try will be performed within 10 seconds...")
-            time.sleep(waiting_time)
+            captcha_solved = input("Press enter when captcha is solved or write 'skip' ")
+
+            if captcha_solved == "skip":
+                print('skiping profile')
+                return None
 
             profile = self.scrape_profile(linkedin_url, int(waiting_time*1.5))
 
@@ -83,6 +105,7 @@ class Scraper(Thread):
             raise ScrapingException
 
         self.browser.get(profile_linkedin_url)
+        
 
         # Check correct loading of profile and eventual Human Check
         if not str(self.browser.current_url).strip() == profile_linkedin_url.strip():
@@ -95,24 +118,85 @@ class Scraper(Thread):
 
         # SCRAPING
 
-        profile_name = self.scrape_profile_name()
+        try:
+            profile_name = self.scrape_profile_name()
+            print("profile name: ", profile_name)
+        except:
+            raise ScrapingException
 
-        email = self.scrape_email()
+        title = self.scrape_title()
+
+        contacts = self.scrape_contacts()
+        about = self.scrape_about()
+
+        time.sleep(1)
+
+        educations = self.scrape_education()
+        print("educations: ", educations)
+
+        volunteering = self.scrape_volunteering()
+        print("volunteering: ", volunteering)
+
+        # email = self.scrape_email()
+        # print("email: ", email)
 
         skills = self.scrape_skills()
+        print("skills: ", skills)
+
+        time.sleep(1)
+
+        certifications = self.scrape_certifications()
+        print("certifications: ", certifications)
+
+        accomplishments = self.scrape_accomplishments()
+        print("accomplishments: ", accomplishments)
+
+        recommendations = self.scrape_recommendations()
+        print(recommendations)
+
+        time.sleep(1)
+
+        interests = self.scrape_interests()
+        print(interests)
 
         jobs = self.scrape_jobs()  # keep as last scraping
+        print("jobs: ", jobs)
 
+
+
+        if len(educations) == 0 and len(jobs) == 0:
+            return None
+        #return pd.DataFrame({"name": [profile_name], "email": [email], "skills": [str(skills)], "jobs": [str(jobs)], "education": [str(educations)]})
+        return {"name": profile_name, "title":title, "contacts": contacts, "about": about, "skills": skills, "jobs": jobs, "education": educations, "volunteering": volunteering, "certifications": certifications, "accomplishments": accomplishments, "recommendations": recommendations, "interests": interests}
         return Profile(
             name=profile_name,
             email=email,
             skills=skills,
-            jobs=jobs
+            jobs=jobs, 
+            educations = educations
         )
+
 
     def scrape_profile_name(self):
         return self.browser.execute_script(
             "return document.getElementsByClassName('pv-top-card--list')[0].children[0].innerText")
+
+    def scrape_title(self):
+        return self.browser.execute_script(
+            "return document.getElementsByClassName('pv-top-card')[0].getElementsByTagName('h2')[0].innerText")
+
+    def scrape_contacts(self):
+        return self.browser.execute_script(
+            "return document.getElementsByClassName('pv-top-card')[0].getElementsByClassName('pv-top-card--list')[1].getElementsByTagName('li')[1].innerText")
+
+    def scrape_about(self):
+        try:
+            about = self.browser.execute_script(
+            "return document.getElementsByClassName('pv-about__summary-text')[0].innerText")
+        except:
+            about = ""
+        
+        return about
 
     def scrape_email(self):
         # > click on 'Contact info' link on the page
@@ -155,39 +239,117 @@ class Scraper(Thread):
                 "'pv-entity__date-range')[0].getElementsByTagName('span')[1].innerText;       } catch (err) {"
                 "date_ranges = ''; }        try{         job_location = els[i].getElementsByClassName("
                 "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__location')[0].getElementsByTagName("
-                "'span')[1].innerText;       } catch (err) {job_location = ''; }        try{         company_url = "
-                "els[i].getElementsByTagName('a')[0].href;       } catch (err) {company_url = ''; }        jobs.push("
-                "[position, company_name, company_url, date_ranges, job_location]);     }   } } return jobs; })();")
+                "'span')[1].innerText;       } catch (err) {job_location = ''; }   try{ company_url = "
+                "els[i].getElementsByTagName('a')[0].href;} catch (err) {company_url = ''; } try{ job_description = "
+                "els[i].getElementsByClassName('pv-entity__extra-details')[0].innerText;} catch (err) {job_description = ''; }       jobs.push("
+                "[position, company_name, company_url, date_ranges, job_location, job_description]);     }   } } return jobs; })();")
         except WebDriverException:
             jobs = []
-            
-        clean_jobs = []
-        for job in jobs: 
-            if job[2] != '':
-                clean_jobs.append(job)
-                
+
         parsed_jobs = []
 
-        for job in clean_jobs:
-            company_industry, company_employees = self.scrape_company_details(job[2])
-
-            parsed_jobs.append(
-                Job(
-                    position=job[0],
-                    company=Company(
-                        name=job[1],
-                        industry=company_industry,
-                        employees=company_employees,
-                    ),
-                    location=Location(job[4]),
-                    date_range=job[3]
-                )
+        for job in jobs:
+            if job[2] != "":
+                company_industry, company_employees = self.scrape_company_details(job[2])
+            
+            parsed_jobs.append({
+                "position": job[0],
+                "company": {
+                    "name": job[1],
+                    "industry": company_industry,
+                    "employees": company_employees
+                    },
+                "location": job[4],
+                "date_range":job[3],
+                "job_description":job[5]
+                }
             )
-
+        
         return parsed_jobs
 
-    def scrape_company_details(self, company_url):
+    def scrape_volunteering(self):
+        try:
+            volunteerings = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementsByClassName("
+                "'volunteering-section')[0].getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         position = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "position = ''; }    try {         cause = els[i].getElementsByClassName("
+                "'pv-entity__cause')[0].getElementsByTagName('span')[1].innerText;       }       catch(err) { "
+                "position = ''; }    try {         company_name = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__secondary-title')[0].innerText;     "
+                "  } catch (err) { company_name = ''; }        try{         date_ranges = els["
+                "i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByClassName("
+                "'pv-entity__date-range')[0].getElementsByTagName('span')[1].innerText;       } catch (err) {"
+                "date_ranges = ''; }        try{         job_location = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__location')[0].getElementsByTagName("
+                "'span')[1].innerText;       } catch (err) {job_location = ''; }        try{         company_url = "
+                "els[i].getElementsByTagName('a')[0].href;       } catch (err) {company_url = ''; }        jobs.push("
+                "[position, company_name, company_url, date_ranges, job_location, cause]);     }   } } return jobs; })();")
+        except WebDriverException:
+            volunteerings = []
 
+        parsed_volunteerings = []
+
+        for volunteering in volunteerings:
+            #if volunteering[2] != "":
+                #company_industry, company_employees = self.scrape_company_details(volunteering[2])
+
+            
+            parsed_volunteerings.append({
+                "position": volunteering[0],
+                "company": volunteering[1],
+                "cause": volunteering[5],
+                "location": volunteering[4],
+                "date_range":volunteering[3]
+
+                }
+            )
+        
+        return parsed_volunteerings
+
+    def scrape_recommendations(self):
+
+        try:
+            recommendations = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementsByClassName("
+                "'pv-recommendations-section')[0].getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         recommender = els[i].getElementsByClassName("
+                "'pv-recommendation-entity__detail')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "recommender = ''; } try {         recommender_position = els[i].getElementsByClassName("
+                "'pv-recommendation-entity__detail')[0].getElementsByTagName('p')[0].innerText;       }       catch(err) { "
+                "recommender_position = ''; } try {         recommender_relation = els[i].getElementsByClassName("
+                "'pv-recommendation-entity__detail')[0].getElementsByTagName('p')[1].innerText;       }       catch(err) { "
+                "recommender_relation = ''; } try { els[i].getElementsByClassName('lt-line-clamp__more')[0].click(); }"
+                "catch(err) { text = ''; }"
+                "try {         text = els[i].getElementsByClassName("
+                "'pv-recommendation-entity__highlights')[0].getElementsByTagName('div')[0].innerText;       }       catch(err) { "
+                "text = ''; } jobs.push("
+                "[recommender, recommender_position, recommender_relation, text]);     }   } } return jobs; })();")
+        except WebDriverException:
+            recommendations = []
+
+
+        parsed_recommendations = []
+
+        for recommendation in recommendations:
+            
+            parsed_recommendations.append({
+                "recommender": recommendation[0],
+                "recommender_position": recommendation[1],
+                "recommender_relation": recommendation[2],
+                "text": recommendation[3]
+                }
+            )
+        
+        return parsed_recommendations
+
+    def scrape_company_details(self, company_url):    
+        time.sleep(1)
         self.browser.get(company_url)
 
         try:
@@ -223,6 +385,256 @@ class Scraper(Thread):
                 "'pv-skill-category-entity__name-text')[0].innerText);}return results;})()")
         except WebDriverException:
             return []
+
+    def scrape_education(self):
+
+        try:
+            educations = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementById("
+                "'education-section').getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         institution = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "institution = ''; }        try {         education_degree = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__secondary-title')[0].getElementsByTagName('span')[1].innerText;     "
+                "  } catch (err) { education_degree = ''; }  try {         education_discipline = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__secondary-title')[1].getElementsByTagName('span')[1].innerText;     "
+                "  } catch (err) { education_discipline = ''; }  try{         date_ranges = els["
+                "i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByClassName("
+                "'pv-entity__dates')[0].getElementsByTagName('span')[1].innerText;       } catch (err) {"
+                "date_ranges = ''; }        try{         job_location = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__location')[0].getElementsByTagName("
+                "'span')[1].innerText;       } catch (err) {job_location = ''; }        try{         company_url = "
+                "els[i].getElementsByTagName('a')[0].href;       } catch (err) {company_url = ''; }        jobs.push("
+                "[institution, education_degree, education_discipline, company_url, date_ranges, job_location]);     }   } } return jobs; })();")
+        except WebDriverException:
+            educations = []
+
+        parsed_educations = []
+
+        for education in educations:
+            parsed_educations.append({
+                "institution": education[0],
+                "degree": education[1],
+                "discipline": education[2],
+                "location": education[5],
+                "date_range":education[4]
+                }
+            )
+        
+        return parsed_educations
+
+    def scrape_certifications(self):
+
+        try:
+            certifications = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementById("
+                "'certifications-section').getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         title = els[i].getElementsByClassName("
+                "'pv-certifications__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "title = ''; }        try {         institution = els[i].getElementsByClassName("
+                "'pv-certifications__summary-info')[0].getElementsByTagName('p')[0].getElementsByTagName('span')[1].innerText;     "
+                "  } catch (err) { institution = ''; }  try{         date_ranges = els["
+                "i].getElementsByClassName('pv-certifications__summary-info')[0].getElementsByTagName("
+                "'p')[1].getElementsByTagName('span')[1].innerText;       } catch (err) {"
+                "date_ranges = ''; }  jobs.push("
+                "[title, institution, date_ranges]);     }   } } return jobs; })();")
+        except WebDriverException:
+            certifications = []
+
+        
+        parsed_certifications = []
+
+        for certification in certifications:
+            parsed_certifications.append({
+                "title": certification[0],
+                "institution": certification[1],
+                "date": certification[2]
+                }
+            )
+        
+        return parsed_certifications
+    
+    def scrape_accomplishments(self):
+
+        try:
+            accomplishments = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementsByClassName("
+                "'pv-accomplishments-section')[0].getElementsByTagName('div'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {  try {         categories = els[i].getElementsByTagName("
+                "'div')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "categories = ''; }     try {         accomplishment = els[i].getElementsByTagName("
+                "'div')[0].getElementsByTagName('div')[0].getElementsByTagName('ul')[0].innerText;       }       catch(err) { "
+                "accomplishment = ''; }  jobs.push("
+                "[categories, accomplishment]);     }   } } return jobs; })();")
+        except WebDriverException:
+            accomplishments = []
+        
+        parsed_accomplishments = []
+
+        for accomplishment in accomplishments:
+
+            if accomplishment[0] != "":
+                parsed_accomplishments.append({
+                    accomplishment[0]: accomplishment[1]
+                    }
+            )
+        
+        return parsed_accomplishments
+
+    def scrape_interests(self):
+        try:
+            self.browser.execute_script(
+                "document.getElementsByClassName('pv-interests-section')[0].getElementsByClassName('pv-profile-section__card-action-bar')[0].click()")
+        except WebDriverException:
+            pass
+
+        wait_for_loading()
+
+        parsed_influencers = []
+
+        # Influencers
+        try:
+            self.browser.execute_script(
+                "document.getElementById('pv-interests-modal__following-influencers').click()")
+
+            interests = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementsByClassName("
+                "'pv-interests-list')[0].getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         name = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "name = ''; }        try {         position = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('p')[0].innerText;     "
+                "  } catch (err) { position = ''; }"
+                "                    try {         followers = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('p')[1].innerText;     "
+                "  } catch (err) { followers = ''; }  jobs.push("
+                "[name, position, followers]);     }   } } return jobs; })();")
+
+            for interest in interests:
+                parsed_influencers.append({
+                    "name": interest[0],
+                    "position": interest[1],
+                    "followers": interest[2]
+                    })
+
+        except WebDriverException:
+            pass
+
+        parsed_companies = []
+
+        # Click companies details
+        try:
+            self.browser.execute_script(
+                "document.getElementById('pv-interests-modal__following-companies').click()")
+
+            wait_for_loading()
+
+            interests = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementsByClassName("
+                "'pv-interests-list')[0].getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         company = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "company = ''; }        try {         followers = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('p')[1].innerText;     "
+                "  } catch (err) { followers = ''; }  jobs.push("
+                "[company, followers]);     }   } } return jobs; })();")
+
+            for interest in interests:
+                parsed_companies.append({
+                    "company": interest[0],
+                    "followers": interest[1]
+                    }
+                )
+        
+        except WebDriverException:
+            pass
+        
+
+        parsed_groups = []
+        # Click companies details
+        try:
+            self.browser.execute_script(
+                "document.getElementById('pv-interests-modal__following-groups').click()")
+
+            wait_for_loading()
+
+            interests = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementsByClassName("
+                "'pv-interests-list')[0].getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         group = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "group = ''; }        try {         members = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('p')[1].innerText;     "
+                "  } catch (err) { members = ''; }  jobs.push("
+                "[group, members]);     }   } } return jobs; })();")
+
+            for interest in interests:
+                parsed_groups.append({
+                    "group": interest[0],
+                    "members": interest[1]
+                    }
+                )
+        
+        except WebDriverException:
+            pass
+
+        
+        parsed_schools = []
+        # Click companies details
+        try:
+            self.browser.execute_script(
+                "document.getElementById('pv-interests-modal__following-schools').click()")
+
+            wait_for_loading()
+
+            interests = self.browser.execute_script(
+                "return (function(){ var jobs = []; var els = document.getElementsByClassName("
+                "'pv-interests-list')[0].getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
+                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                "     } else {       try {         school = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
+                "school = ''; }        try {         followers = els[i].getElementsByClassName("
+                "'pv-entity__summary-info')[0].getElementsByTagName('p')[1].innerText;     "
+                "  } catch (err) { followers = ''; }  jobs.push("
+                "[company, followers]);     }   } } return jobs; })();")
+
+            for interest in interests:
+                parsed_schools.append({
+                    "school": interest[0],
+                    "followers": interest[1]
+                    }
+                )
+        
+        except WebDriverException:
+            pass
+
+
+        try:
+            self.browser.execute_script("document.getElementsByClassName('artdeco-modal__dismiss')[0].click()")
+        except WebDriverException:
+            pass
+
+        parsed_interests = {
+        "infuencers": parsed_influencers, 
+        "companies": parsed_companies, 
+        "groups": parsed_groups,
+        "schools": parsed_schools
+        }
+        
+        return parsed_interests
 
     def load_full_page(self):
         window_height = self.browser.execute_script("return window.innerHeight")
