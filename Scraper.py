@@ -327,7 +327,7 @@ class Scraper(Thread):
         while True: 
             try:
                 script = "document.getElementsByClassName('pv-recommendations-section')[0].getElementsByTagName('ul')[0].getElementsByTagName('li')[{}].innerText".format(counter)
-                print(self.browser.execute_script("return " + script))
+                self.browser.execute_script("return " + script)
                 try:
                     script = "document.getElementsByClassName('pv-recommendations-section')[0].getElementsByTagName('ul')[0].getElementsByTagName('li')[{}].getElementsByClassName('lt-line-clamp__more')[0].click()".format(counter)
                     self.browser.execute_script(script)
