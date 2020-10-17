@@ -152,12 +152,12 @@ class Scraper(Thread):
         print("accomplishments: ", accomplishments)
 
         recommendations = self.scrape_recommendations()
-        print(recommendations)
+        print("recommendations: ", recommendations)
 
         time.sleep(1)
 
         interests = self.scrape_interests()
-        print(interests)
+        print("interests: ", interests)
 
         jobs = self.scrape_jobs()  # keep as last scraping
         print("jobs: ", jobs)
@@ -311,6 +311,33 @@ class Scraper(Thread):
         return parsed_volunteerings
 
     def scrape_recommendations(self):
+        
+        ### Click on all 'show more recommendations'
+        while True:
+            try:
+                self.browser.execute_script(
+                    "document.getElementsByClassName('pv-recommendations-section')[0].getElementsByClassName('pv-profile-section__see-more-inline')[0].click()")
+
+            except WebDriverException:
+                break
+        
+        ###TODO
+        ### Ugly way of expanding recommendations. Need to fix this
+        counter = 0
+        while True: 
+            try:
+                script = "document.getElementsByClassName('pv-recommendations-section')[0].getElementsByTagName('ul')[0].getElementsByTagName('li')[{}].innerText".format(counter)
+                print(self.browser.execute_script("return " + script))
+                try:
+                    script = "document.getElementsByClassName('pv-recommendations-section')[0].getElementsByTagName('ul')[0].getElementsByTagName('li')[{}].getElementsByClassName('lt-line-clamp__more')[0].click()".format(counter)
+                    self.browser.execute_script(script)
+                    counter +=1 
+                except:
+                    pass
+            except:
+                break
+                
+
 
         try:
             recommendations = self.browser.execute_script(
@@ -324,8 +351,8 @@ class Scraper(Thread):
                 "'pv-recommendation-entity__detail')[0].getElementsByTagName('p')[0].innerText;       }       catch(err) { "
                 "recommender_position = ''; } try {         recommender_relation = els[i].getElementsByClassName("
                 "'pv-recommendation-entity__detail')[0].getElementsByTagName('p')[1].innerText;       }       catch(err) { "
-                "recommender_relation = ''; } try { els[i].getElementsByClassName('lt-line-clamp__more')[0].click(); }"
-                "catch(err) { text = ''; }"
+                "recommender_relation = ''; } try { els[i].getElementsByClassName('pv-recommendation-entity__highlights')[0].getElementsByClassName('lt-line-clamp__more')[0].click(); } catch(err) {debug = 'error';} "
+
                 "try {         text = els[i].getElementsByClassName("
                 "'pv-recommendation-entity__highlights')[0].getElementsByTagName('div')[0].innerText;       }       catch(err) { "
                 "text = ''; } jobs.push("
@@ -337,6 +364,8 @@ class Scraper(Thread):
         parsed_recommendations = []
 
         for recommendation in recommendations:
+            print(recommendation[3])
+
             
             parsed_recommendations.append({
                 "recommender": recommendation[0],
