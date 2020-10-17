@@ -363,10 +363,7 @@ class Scraper(Thread):
 
         parsed_recommendations = []
 
-        for recommendation in recommendations:
-            print(recommendation[3])
-
-            
+        for recommendation in recommendations:           
             parsed_recommendations.append({
                 "recommender": recommendation[0],
                 "recommender_position": recommendation[1],
