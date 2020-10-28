@@ -45,7 +45,7 @@ s = Scraper(
     profiles_urls=profiles_urls,
     headless=headless_option,
     output_file_path = path + "linkedin_data/",
-    bullhorn_ids = profiles_ids
+    ids = profiles_ids
 )
 
 s.start()
