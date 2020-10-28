@@ -1,15 +1,9 @@
-import json
 import pandas as pd
 import sys
 import os
-import time
-import xlsxwriter
 from configparser import ConfigParser
 
 from Scraper import Scraper
-
-# Loading of configurations
-from utils import ComplexEncoder
 
 config = ConfigParser()
 config.read('config.ini')
@@ -49,7 +43,7 @@ s = Scraper(
     linkedin_password=config.get('linkedin', 'password'),
     profiles_urls=profiles_urls,
     headless=headless_option,
-    output_file_name = path + "linkedin_data/",
+    output_file_path = path + "linkedin_data/",
     bullhorn_ids = profiles_ids
 )
 
