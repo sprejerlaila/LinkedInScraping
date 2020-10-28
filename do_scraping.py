@@ -12,7 +12,8 @@ config.read('config.ini')
 headless_option = len(sys.argv) >= 2 and sys.argv[1].upper() == 'HEADLESS'
 
 path = config.get('profiles_data', 'path')
-profiles = pd.read_csv(path + 'linkedin_list.csv')
+input_file_name = config.get('profiles_data', 'input_file_name')
+profiles = pd.read_csv(path + input_file_name)
 
 collected_ids = []
 if 'collected_ids.csv' in os.listdir(path + "linkedin_data/"):
