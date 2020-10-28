@@ -1,6 +1,6 @@
 # LinkedIn Scraping with Python
 
-Create an CSV containing public LinkedIn profile information: 
+Create a json file containing public LinkedIn profile information: 
 
 - Name
 - Title
