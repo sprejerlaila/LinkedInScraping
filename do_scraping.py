@@ -34,7 +34,9 @@ profiles = profiles[~profiles.id.isin(collected_ids)].reset_index().loc[3:]
 
 
 profiles_urls = profiles.linkedin.values
+profiles_urls = ['https://www.linkedin.com/in/lukasz-poczesny/']
 profiles_ids = profiles.id.values
+profiles_ids = [0]
 
 if len(profiles_urls) == 0:
     print("Please provide an input.")
@@ -54,7 +56,5 @@ s = Scraper(
 s.start()
 
 s.join()
-
-scraping_results = s.results
 
 print("Scraping Ended")
