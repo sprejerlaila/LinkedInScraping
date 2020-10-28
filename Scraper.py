@@ -8,76 +8,89 @@ import json
 from webdriver_manager.chrome import ChromeDriverManager
 
 from utils import Profile, ScrapingException, is_url_valid, HumanCheckException, wait_for_loading, wait_for_scrolling, \
-    Job, AuthenticationException, Location, Company, ScrapingResult
-
-import pandas as pd
-
+    AuthenticationException
 
 class Scraper(Thread):
 
-    def __init__(self, linkedin_username, linkedin_password, profiles_urls, headless=False, output_file_name = "scrape_results.csv", bullhorn_ids = None):
+    def __init__(self, linkedin_username, linkedin_password, profiles_urls, headless=False, output_file_path = "scrape_results.csv", ids = None):
 
         Thread.__init__(self)
 
         # Creation of a new instance of Chrome
-        options = webdriver.ChromeOptions()
-        options.add_argument('--no-sandbox')
+        self.options = webdriver.ChromeOptions()
+        self.options.add_argument('--no-sandbox')
         if headless:
-            options.add_argument('--headless')
+            self.options.add_argument('--headless')
 
-        self.browser = webdriver.Chrome(executable_path=ChromeDriverManager().install(), options=options)
+        self.browser = webdriver.Chrome(executable_path=ChromeDriverManager().install(), options=self.options)
 
         self.profiles_urls = profiles_urls
+        self.ids = ids
 
         self.linkedin_username = linkedin_username
         self.linkedin_password = linkedin_password
 
-        self.output_file_name = output_file_name
-        print(self.output_file_name)
-        self.bullhorn_ids = bullhorn_ids
+        self.output_file_path = output_file_path
 
+        
     def run(self):
-
-        # Login in LinkedIn
-        self.browser.get('https://www.linkedin.com/uas/login')
-
-        username_input = self.browser.find_element_by_id('username')
-        username_input.send_keys(self.linkedin_username)
-
-        password_input = self.browser.find_element_by_id('password')
-        password_input.send_keys(self.linkedin_password)
-        password_input.submit()
-
-        if not self.browser.current_url == "https://www.linkedin.com/feed/":
-            print(self.browser.current_url)
-            time.sleep(40)
-            raise AuthenticationException()
-
+        
         for idx, linkedin_url in enumerate(self.profiles_urls):
+            
+            # Login in LinkedIn
+            self.browser.get('https://www.linkedin.com/uas/login')
+            
+            # Add cookies
+            cookies = [
+            {'x-acbuk': '"GBEMY3O2hrKWNI7e@Pf4pIuZ@998tjCaFwx@swBsIO2Bzb@FDBA5b1matewtPivx"'},
+            {'gt_userPref': 'lfsk:a2luZytzaXplK2JlZCtzaGVldHMscnVsZWQrbm90ZWJvb2ssd2hpdGVib2FyZA==|isSearchOpen:dHJ1ZQ==|recentAdsOne:Y2Fycy12YW5zLW1vdG9yYmlrZXM=|cookiePolicy:dHJ1ZQ==|recentAdsTwo:Zm9yLXNhbGU=|location:dWs='},
+            {'gt_tm': '8eb554fd-00b1-4b8a-8abb-8d1a43bed8e5'},
+            {'gt_s': 'sc:MQ==|ar:aHR0cDovL3d3dy5ndW10cmVlLmNvbS9zZWFyY2g/c2VhcmNoX2NhdGVnb3J5PWFsbCZxPWtpbmclMjBzaXplJTIwYmVkJTIwc2hlZXRz|st:MTYwMDYzMTA4NjcyOA==|clicksource_featured:|sk:a2luZyBzaXplIGJlZCBzaGVldHM=|clicksource_nearby:|id:bm9kZTAxN3FlYTF0YXl1NXEwMTN1OWx2cGcyM293NDgyNDQ1Nw==|clicksource_natural:MTM4NDkyMTczOCwxMzg0NjU3MzQyLDEzNjkzMTgwNzAsMTM4NDU0NDM5NywxMzQyODkzMTkzLDEzODMyMTMxOTcsMTM4MjgyMjc3MSwxMzgyODIyNTMzLDEzODI4MjE5ODIsMTM4MjMyODc5MA=='}
+            ]
 
+            for c in cookies:
+                self.browser.add_cookie({"name": list(c.keys())[0], "value": list(c.values())[0]})
+
+            username_input = self.browser.find_element_by_id('username')
+            username_input.send_keys(self.linkedin_username)
+
+            password_input = self.browser.find_element_by_id('password')
+            password_input.send_keys(self.linkedin_password)
+            password_input.submit()
+
+            if not self.browser.current_url == "https://www.linkedin.com/feed/":
+                print(self.browser.current_url)
+                time.sleep(40)
+                raise AuthenticationException()
+
+        
             print("scraping profile: ", linkedin_url)
             scrape_results = self.scrape_profile(linkedin_url)
 
             if not scrape_results:
-                with open(self.output_file_name + 'error_bullhorn_ids.csv', 'a') as f:
-                     f.write("%s\n" % self.bullhorn_ids[idx])
+                
+                ## Keep track of non-collected users
+                with open(self.output_file_path + 'error_ids.csv', 'a') as f:
+                     f.write("%s\n" % self.ids[idx])
 
                 print("waiting 10 seconds")
                 time.sleep(10)
 
             else:
-    
-                scrape_results['id'] = self.bullhorn_ids[idx]
+                scrape_results['id'] = self.ids[idx]
                 
-                with open(self.output_file_name + 'scraped_profiles.json', 'a') as fp:
+                with open(self.output_file_path + 'scraped_profiles.json', 'a') as fp:
                         json.dump(scrape_results, fp)
 
                         fp.write('\n')
+                
+                # Keep track of collected users
+                with open(self.output_file_name + 'collected_ids.csv', 'a') as f:
+                        f.write("%s\n" % self.ids[idx])
+                        
+            time.sleep(3)
 
-                with open(self.output_file_name + 'collected_bullhorn_ids.csv', 'a') as f:
-                        f.write("%s\n" % self.bullhorn_ids[idx])
 
-        # Closing the Chrome instance
         self.browser.quit()
 
     def scrape_profile(self, linkedin_url, waiting_time=10):
@@ -125,56 +138,35 @@ class Scraper(Thread):
             raise ScrapingException
 
         title = self.scrape_title()
-
-        contacts = self.scrape_contacts()
+        contacts = self.scrape_contacts() # get number of contacts
         about = self.scrape_about()
 
         time.sleep(1)
 
         educations = self.scrape_education()
-        print("educations: ", educations)
-
         volunteering = self.scrape_volunteering()
-        print("volunteering: ", volunteering)
-
-        # email = self.scrape_email()
-        # print("email: ", email)
-
         skills = self.scrape_skills()
-        print("skills: ", skills)
 
         time.sleep(1)
 
         certifications = self.scrape_certifications()
-        print("certifications: ", certifications)
-
         accomplishments = self.scrape_accomplishments()
-        print("accomplishments: ", accomplishments)
-
         recommendations = self.scrape_recommendations()
-        print("recommendations: ", recommendations)
 
         time.sleep(1)
 
         interests = self.scrape_interests()
-        print("interests: ", interests)
-
         jobs = self.scrape_jobs()  # keep as last scraping
-        print("jobs: ", jobs)
 
 
 
         if len(educations) == 0 and len(jobs) == 0:
             return None
-        #return pd.DataFrame({"name": [profile_name], "email": [email], "skills": [str(skills)], "jobs": [str(jobs)], "education": [str(educations)]})
-        return {"name": profile_name, "title":title, "contacts": contacts, "about": about, "skills": skills, "jobs": jobs, "education": educations, "volunteering": volunteering, "certifications": certifications, "accomplishments": accomplishments, "recommendations": recommendations, "interests": interests}
-        return Profile(
-            name=profile_name,
-            email=email,
-            skills=skills,
-            jobs=jobs, 
-            educations = educations
-        )
+
+        return {"name": profile_name, "title":title, "contacts": contacts, "about": about, "skills": skills, \
+                "jobs": jobs, "education": educations, "volunteering": volunteering, "certifications": certifications,\
+                "accomplishments": accomplishments, "recommendations": recommendations, "interests": interests}
+
 
 
     def scrape_profile_name(self):
@@ -198,29 +190,6 @@ class Scraper(Thread):
         
         return about
 
-    def scrape_email(self):
-        # > click on 'Contact info' link on the page
-        self.browser.execute_script(
-            "(function(){try{for(i in document.getElementsByTagName('a')){let el = document.getElementsByTagName("
-            "'a')[i]; if(el.innerHTML.includes('Contact info')){el.click();}}}catch(e){}})()")
-        wait_for_loading()
-
-        # > gets email from the 'Contact info' popup
-        try:
-            email = self.browser.execute_script(
-                "return (function(){try{for (i in document.getElementsByClassName('pv-contact-info__contact-type')){ "
-                "let el = document.getElementsByClassName('pv-contact-info__contact-type')[i]; if("
-                "el.className.includes( 'ci-email')){ return el.children[2].children[0].innerText; } }} catch(e){"
-                "return '';}})()")
-        except WebDriverException:
-            email = ''
-
-        try:
-            self.browser.execute_script("document.getElementsByClassName('artdeco-modal__dismiss')[0].click()")
-        except WebDriverException:
-            pass
-
-        return email
 
     def scrape_jobs(self):
 
@@ -233,14 +202,16 @@ class Scraper(Thread):
                 "     } else {       try {         position = els[i].getElementsByClassName("
                 "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
                 "position = ''; }        try {         company_name = els[i].getElementsByClassName("
-                "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__secondary-title')[0].innerText;     "
+                "'pv-entity_summary-info')[0].getElementsByClassName('pv-entity_secondary-title')[0].innerText;     "
                 "  } catch (err) { company_name = ''; }        try{         date_ranges = els["
                 "i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByClassName("
                 "'pv-entity__date-range')[0].getElementsByTagName('span')[1].innerText;       } catch (err) {"
                 "date_ranges = ''; }        try{         job_location = els[i].getElementsByClassName("
-                "'pv-entity__summary-info')[0].getElementsByClassName('pv-entity__location')[0].getElementsByTagName("
+                "'pv-entity_summary-info')[0].getElementsByClassName('pv-entity_location')[0].getElementsByTagName("
                 "'span')[1].innerText;       } catch (err) {job_location = ''; }   try{ company_url = "
-                "els[i].getElementsByTagName('a')[0].href;} catch (err) {company_url = ''; } try{ job_description = "
+                "els[i].getElementsByTagName('a')[0].href;} catch (err) {company_url = ''; } "
+                "try { els[i].getElementsByClassName('pv-entity_extra-details')[0].getElementsByClassName('inline-show-more-text_button')[0].click(); } catch(err) {debug = 'error';}"
+                "try{ job_description = "
                 "els[i].getElementsByClassName('pv-entity__extra-details')[0].innerText;} catch (err) {job_description = ''; }       jobs.push("
                 "[position, company_name, company_url, date_ranges, job_location, job_description]);     }   } } return jobs; })();")
         except WebDriverException:
@@ -250,8 +221,9 @@ class Scraper(Thread):
 
         for job in jobs:
             if job[2] != "":
+                time.sleep(1)
                 company_industry, company_employees = self.scrape_company_details(job[2])
-            
+                
             parsed_jobs.append({
                 "position": job[0],
                 "company": {
@@ -294,9 +266,6 @@ class Scraper(Thread):
         parsed_volunteerings = []
 
         for volunteering in volunteerings:
-            #if volunteering[2] != "":
-                #company_industry, company_employees = self.scrape_company_details(volunteering[2])
-
             
             parsed_volunteerings.append({
                 "position": volunteering[0],
@@ -337,8 +306,6 @@ class Scraper(Thread):
             except:
                 break
                 
-
-
         try:
             recommendations = self.browser.execute_script(
                 "return (function(){ var jobs = []; var els = document.getElementsByClassName("
@@ -375,7 +342,6 @@ class Scraper(Thread):
         return parsed_recommendations
 
     def scrape_company_details(self, company_url):    
-        time.sleep(1)
         self.browser.get(company_url)
 
         try:
