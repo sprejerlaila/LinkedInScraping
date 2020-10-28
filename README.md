@@ -13,7 +13,7 @@ Create a json file containing public LinkedIn profile information:
 - Volunteering
 - Interests
 
-Doubts? Reach me out on [LinkedIn](https://www.linkedin.com/in/sprejerlaila/). or sprejerlaila@gmail.com
+Doubts? Reach me out on [LinkedIn](https://www.linkedin.com/in/lailasprejer/). or sprejerlaila@gmail.com
 
 ## Prerequisites
 
@@ -43,19 +43,16 @@ In any time in the future you can easily run again the configuration to apply ch
 python do_scraping.py
 ```
 
-### Examples
+### Input data
 
-LinkedIn URLs:
-```
-https://www.linkedin.com/in/federicohaag/
-https://www.linkedin.com/in/someoneelse/
-```
-* The profile URL should always end with `/`
+CSV file containg at least two fields: 
+- id: unique identifier for each profile
+- linkedin: linkedin urls in the format: https://www.linkedin.com/in/lailasprejer/ (The profile URL should always end with `/`)
 
 ## Authors
 
 * Main code: **Federico Haag** - [LinkedIn](https://www.linkedin.com/in/federicohaag/) - [Medium](https://medium.com/@federicohaag)
-* Contributor: **Laila Sprejer** - [LinkedIn](https://www.linkedin.com/in/sprejerlaila/)
+* Contributor: **Laila Sprejer** - [LinkedIn](https://www.linkedin.com/in/lailasprejer/)
 
 ## Disclaimer
 
