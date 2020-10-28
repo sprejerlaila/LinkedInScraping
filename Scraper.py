@@ -7,7 +7,7 @@ import json
 
 from webdriver_manager.chrome import ChromeDriverManager
 
-from utils import Profile, ScrapingException, is_url_valid, HumanCheckException, wait_for_loading, wait_for_scrolling, \
+from utils import ScrapingException, is_url_valid, HumanCheckException, wait_for_loading, wait_for_scrolling, \
     AuthenticationException
 
 class Scraper(Thread):
@@ -35,35 +35,36 @@ class Scraper(Thread):
         
     def run(self):
         
-        for idx, linkedin_url in enumerate(self.profiles_urls):
-            
-            # Login in LinkedIn
-            self.browser.get('https://www.linkedin.com/uas/login')
-            
-            # Add cookies
-            cookies = [
-            {'x-acbuk': '"GBEMY3O2hrKWNI7e@Pf4pIuZ@998tjCaFwx@swBsIO2Bzb@FDBA5b1matewtPivx"'},
-            {'gt_userPref': 'lfsk:a2luZytzaXplK2JlZCtzaGVldHMscnVsZWQrbm90ZWJvb2ssd2hpdGVib2FyZA==|isSearchOpen:dHJ1ZQ==|recentAdsOne:Y2Fycy12YW5zLW1vdG9yYmlrZXM=|cookiePolicy:dHJ1ZQ==|recentAdsTwo:Zm9yLXNhbGU=|location:dWs='},
-            {'gt_tm': '8eb554fd-00b1-4b8a-8abb-8d1a43bed8e5'},
-            {'gt_s': 'sc:MQ==|ar:aHR0cDovL3d3dy5ndW10cmVlLmNvbS9zZWFyY2g/c2VhcmNoX2NhdGVnb3J5PWFsbCZxPWtpbmclMjBzaXplJTIwYmVkJTIwc2hlZXRz|st:MTYwMDYzMTA4NjcyOA==|clicksource_featured:|sk:a2luZyBzaXplIGJlZCBzaGVldHM=|clicksource_nearby:|id:bm9kZTAxN3FlYTF0YXl1NXEwMTN1OWx2cGcyM293NDgyNDQ1Nw==|clicksource_natural:MTM4NDkyMTczOCwxMzg0NjU3MzQyLDEzNjkzMTgwNzAsMTM4NDU0NDM5NywxMzQyODkzMTkzLDEzODMyMTMxOTcsMTM4MjgyMjc3MSwxMzgyODIyNTMzLDEzODI4MjE5ODIsMTM4MjMyODc5MA=='}
-            ]
+        
+        # Login in LinkedIn
+        self.browser.get('https://www.linkedin.com/uas/login')
+        
+        # Add cookies
+        cookies = [
+        {'x-acbuk': '"GBEMY3O2hrKWNI7e@Pf4pIuZ@998tjCaFwx@swBsIO2Bzb@FDBA5b1matewtPivx"'},
+        {'gt_userPref': 'lfsk:a2luZytzaXplK2JlZCtzaGVldHMscnVsZWQrbm90ZWJvb2ssd2hpdGVib2FyZA==|isSearchOpen:dHJ1ZQ==|recentAdsOne:Y2Fycy12YW5zLW1vdG9yYmlrZXM=|cookiePolicy:dHJ1ZQ==|recentAdsTwo:Zm9yLXNhbGU=|location:dWs='},
+        {'gt_tm': '8eb554fd-00b1-4b8a-8abb-8d1a43bed8e5'},
+        {'gt_s': 'sc:MQ==|ar:aHR0cDovL3d3dy5ndW10cmVlLmNvbS9zZWFyY2g/c2VhcmNoX2NhdGVnb3J5PWFsbCZxPWtpbmclMjBzaXplJTIwYmVkJTIwc2hlZXRz|st:MTYwMDYzMTA4NjcyOA==|clicksource_featured:|sk:a2luZyBzaXplIGJlZCBzaGVldHM=|clicksource_nearby:|id:bm9kZTAxN3FlYTF0YXl1NXEwMTN1OWx2cGcyM293NDgyNDQ1Nw==|clicksource_natural:MTM4NDkyMTczOCwxMzg0NjU3MzQyLDEzNjkzMTgwNzAsMTM4NDU0NDM5NywxMzQyODkzMTkzLDEzODMyMTMxOTcsMTM4MjgyMjc3MSwxMzgyODIyNTMzLDEzODI4MjE5ODIsMTM4MjMyODc5MA=='}
+        ]
 
-            for c in cookies:
-                self.browser.add_cookie({"name": list(c.keys())[0], "value": list(c.values())[0]})
+        for c in cookies:
+            self.browser.add_cookie({"name": list(c.keys())[0], "value": list(c.values())[0]})
 
-            username_input = self.browser.find_element_by_id('username')
-            username_input.send_keys(self.linkedin_username)
+        username_input = self.browser.find_element_by_id('username')
+        username_input.send_keys(self.linkedin_username)
 
-            password_input = self.browser.find_element_by_id('password')
-            password_input.send_keys(self.linkedin_password)
-            password_input.submit()
-
-            if not self.browser.current_url == "https://www.linkedin.com/feed/":
+        password_input = self.browser.find_element_by_id('password')
+        password_input.send_keys(self.linkedin_password)
+        password_input.submit()
+        
+        if not self.browser.current_url == "https://www.linkedin.com/feed/":
                 print(self.browser.current_url)
                 time.sleep(40)
                 raise AuthenticationException()
 
         
+        for idx, linkedin_url in enumerate(self.profiles_urls):
+            
             print("scraping profile: ", linkedin_url)
             scrape_results = self.scrape_profile(linkedin_url)
 
@@ -85,7 +86,7 @@ class Scraper(Thread):
                         fp.write('\n')
                 
                 # Keep track of collected users
-                with open(self.output_file_name + 'collected_ids.csv', 'a') as f:
+                with open(self.output_file_path + 'collected_ids.csv', 'a') as f:
                         f.write("%s\n" % self.ids[idx])
                         
             time.sleep(3)
