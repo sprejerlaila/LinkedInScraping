@@ -146,7 +146,7 @@ class Scraper(Thread):
 
         educations = self.scrape_education()
         volunteering = self.scrape_volunteering()
-        skills = self.scrape_skills()
+        skills = self.scrape_skills() ### TODO ADD NUMBER OF VALIDATIONS
 
         time.sleep(1)
 
@@ -183,6 +183,12 @@ class Scraper(Thread):
             "return document.getElementsByClassName('pv-top-card')[0].getElementsByClassName('pv-top-card--list')[1].getElementsByTagName('li')[1].innerText")
 
     def scrape_about(self):
+        try:
+            self.browser.execute_script(
+                "document.getElementsByClassName('pv-about__summary-text')[0].getElementsByClassName('lt-line-clamp__more')[0].click()")
+        except WebDriverException:
+            return []
+
         try:
             about = self.browser.execute_script(
             "return document.getElementsByClassName('pv-about__summary-text')[0].innerText")
