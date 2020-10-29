@@ -193,34 +193,71 @@ class Scraper(Thread):
 
 
     def scrape_jobs(self):
-
         try:
             jobs = self.browser.execute_script(
-                "return (function(){ var jobs = []; var els = document.getElementById("
-                "'experience-section').getElementsByTagName('ul')[0].getElementsByTagName('li'); for (var i=0; "
-                "i<els.length; i++){   if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
-                "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
-                "     } else {       try {         position = els[i].getElementsByClassName("
-                "'pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;       }       catch(err) { "
-                "position = ''; }        try {         company_name = els[i].getElementsByClassName("
-                "'pv-entity_summary-info')[0].getElementsByClassName('pv-entity_secondary-title')[0].innerText;     "
-                "  } catch (err) { company_name = ''; }        try{         date_ranges = els["
-                "i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByClassName("
-                "'pv-entity__date-range')[0].getElementsByTagName('span')[1].innerText;       } catch (err) {"
-                "date_ranges = ''; }        try{         job_location = els[i].getElementsByClassName("
-                "'pv-entity_summary-info')[0].getElementsByClassName('pv-entity_location')[0].getElementsByTagName("
-                "'span')[1].innerText;       } catch (err) {job_location = ''; }   try{ company_url = "
-                "els[i].getElementsByTagName('a')[0].href;} catch (err) {company_url = ''; } "
-                "try { els[i].getElementsByClassName('pv-entity_extra-details')[0].getElementsByClassName('inline-show-more-text_button')[0].click(); } catch(err) {debug = 'error';}"
-                "try{ job_description = "
-                "els[i].getElementsByClassName('pv-entity__extra-details')[0].innerText;} catch (err) {job_description = ''; }       jobs.push("
-                "[position, company_name, company_url, date_ranges, job_location, job_description]);     }   } } return jobs; })();")
+                "return ("
+                    "function(){ "
+                        "var jobs = []; var els = document.getElementById('experience-section').getElementsByTagName('ul')[0].getElementsByTagName('li');"
+                        "for (var i=0; i<els.length; i++){ "
+                            "try { var els2 = els[i].getElementsByTagName('ul')[0].getElementsByTagName('li'); "
+                                "for (var j=0; j<els2.length; j++){  "
+                                    "if(els2[j].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                                        "  if(els2[j].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                                        "     } else { "
+                                                    "try { position = els2[j].getElementsByTagName('h3')[0].getElementsByTagName('span')[1].innerText; } "
+                                                    "catch(err) { position = ''; }"
+                                                    "try { company_name = els[i].getElementsByClassName('pv-entity__company-summary-info')[0].getElementsByTagName('h3')[0].getElementsByTagName('span')[1].innerText; }"
+                                                    "catch (err) { company_name = ''; }"
+                                                    "try{  date_ranges = els2[j].getElementsByClassName('pv-entity__date-range')[0].getElementsByTagName('span')[1].innerText; }"
+                                                    "catch (err) {date_ranges = ''; } "
+                                                    "try{  job_location = els2[j].getElementsByClassName('pv-entity__location')[0].getElementsByTagName('span')[1].innerText; }"
+                                                    "catch (err) {job_location = ''; } "
+                                                    "try{ company_url = els[i].getElementsByTagName('a')[0].href;} catch (err) {company_url = ''; } "
+                                                    "try { els2[j].getElementsByClassName('pv-entity__extra-details')[0].getElementsByClassName('inline-show-more-text__button')[0].click(); } catch(err) {debug = 'error';}"
+                                                    "try{ job_description = els2[j].getElementsByClassName('pv-entity__extra-details')[0].getElementsByClassName('pv-entity__description')[0].innerText;} catch (err) {job_description = ''; }"
+                                                    "jobs.push([position, company_name, company_url, date_ranges, job_location, job_description]);"
+                                                "}"
+                                    "}"
+                                 "}"
+                            "}"
+
+                            "catch (err) {"
+                                    "if(els[i].className!='pv-entity__position-group-role-item-fading-timeline'){   "
+                                    "  if(els[i].getElementsByClassName('pv-entity__position-group-role-item-fading-timeline').length>0){ "
+                                    "       } else {"
+                                                "try { position = els[i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByTagName('h3')[0].innerText;} "
+                                                "catch(err) {position = ''; } "
+
+                                                "try { company_name = els[i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByClassName('pv-entity__secondary-title')[0].innerText;} "
+                                                "catch (err) { company_name = ''; } "
+                                                
+                                                "try{ date_ranges = els[i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByClassName("
+                                                "'pv-entity__date-range')[0].getElementsByTagName('span')[1].innerText;       } catch (err) {"
+                                                "date_ranges = ''; }  "
+                                                
+                                                "try{ job_location = els[i].getElementsByClassName('pv-entity__summary-info')[0].getElementsByClassName('pv-entity__location')[0].getElementsByTagName("
+                                                "'span')[1].innerText;       } catch (err) {job_location = ''; }"
+                                                
+                                                "try{ company_url = els[i].getElementsByTagName('a')[0].href;} catch (err) {company_url = ''; } "
+                                                
+                                                "try { els[i].getElementsByClassName('pv-entity__extra-details')[0].getElementsByClassName('inline-show-more-text__button')[0].click(); } catch(err) {debug = 'error';}"
+                                                "try{ job_description = "
+                                                "els[i].getElementsByClassName('pv-entity__extra-details')[0].getElementsByClassName('pv-entity__description')[0].innerText;} catch (err) {job_description = ''; }       jobs.push("
+                                                "[position, company_name, company_url, date_ranges, job_location, job_description]); }"
+                                                "}"
+                            "} "
+                        "} "
+                    "return jobs; })();"
+
+                )
         except WebDriverException:
             jobs = []
 
         parsed_jobs = []
 
         for job in jobs:
+            if job[0] == "":
+                continue
             if job[2] != "":
                 time.sleep(1)
                 company_industry, company_employees = self.scrape_company_details(job[2])
