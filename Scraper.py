@@ -10,6 +10,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from utils import ScrapingException, is_url_valid, HumanCheckException, wait_for_loading, wait_for_scrolling, \
     AuthenticationException
 
+from collections import defaultdict
+
 class Scraper(Thread):
 
     def __init__(self, linkedin_username, linkedin_password, profiles_urls, headless=False, output_file_path = "scrape_results.csv", ids = None):
@@ -146,7 +148,7 @@ class Scraper(Thread):
 
         educations = self.scrape_education()
         volunteering = self.scrape_volunteering()
-        skills = self.scrape_skills() ### TODO ADD NUMBER OF VALIDATIONS
+        skills = self.scrape_skills() 
 
         time.sleep(1)
 
@@ -158,7 +160,6 @@ class Scraper(Thread):
 
         interests = self.scrape_interests()
         jobs = self.scrape_jobs()  # keep as last scraping
-
 
 
         if len(educations) == 0 and len(jobs) == 0:
@@ -415,12 +416,52 @@ class Scraper(Thread):
         wait_for_loading()
 
         try:
-            return self.browser.execute_script(
-                "return (function(){els = document.getElementsByClassName('pv-skill-category-entity');results = ["
-                "];for (var i=0; i < els.length; i++){results.push(els[i].getElementsByClassName("
-                "'pv-skill-category-entity__name-text')[0].innerText);}return results;})()")
+            ### Top skills
+            top_skills = self.browser.execute_script(
+                    "return (function(){ var results = []; "
+                    "                   var els = document.getElementsByClassName('pv-skill-categories-section__top-skills')[0].getElementsByTagName('li');"
+                    "for (var i=0; i < els.length; i++){ "
+                                            "       try { skill = els[i].getElementsByClassName('pv-skill-category-entity__name-text')[0].innerText; }"
+                                            "       catch(err) { skill = ''; }"
+                                            "       try { endorsement = els[i].getElementsByClassName('pv-skill-category-entity__endorsement-count')[0].innerText; }"
+                                            "       catch(err) { endorsement = '' ; }"
+                    "       results.push([skill, endorsement]); } "
+                    "       return results; })(); "
+                    "")
+
+            other_skills = self.browser.execute_script(
+                    "return (function(){ var results = []; "
+                    "                   var els = document.getElementsByClassName('pv-skill-categories-section__expanded')[0].getElementsByClassName('pv-skill-category-list');"
+                    "for (var i=0; i < els.length; i++){ "
+                    "   var els2 = els[i].getElementsByTagName('li');"
+                    "   for (var j=0; j < els2.length; j++){"
+                                                "       try { skill_cat = els[i].getElementsByTagName('h3')[0].innerText; }"
+                                                "       catch(err) { skill_cat = ''; }"
+                                                "       try { skill = els2[j].getElementsByClassName('pv-skill-category-entity__name-text')[0].innerText; }"
+                                                "       catch(err) { skill = ''; }"
+                                                "       try { endorsement = els2[j].getElementsByClassName('pv-skill-category-entity__endorsement-count')[0].innerText; }"
+                                                "       catch(err) { endorsement = '' ; }"
+                    "           results.push([skill_cat, skill, endorsement]); }  } "
+                    "       return results; })(); "
+                    "")
+
+            parsed_skills = defaultdict(list)
+            for skill in top_skills:
+                if skill[0] != "":
+                    if skill[1] == "":
+                        skill[1] = 0
+                    parsed_skills['top_skills'].append(skill) 
+
+            for skill in other_skills:
+                if skill[0] != "":
+                    if skill[2] == "":
+                        skill[2] = 0
+                    parsed_skills[skill[0]].append(skill[1:]) 
+
+            return parsed_skills
+
         except WebDriverException:
-            return []
+            return {}
 
     def scrape_education(self):
 
