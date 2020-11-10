@@ -51,7 +51,7 @@ CSV file containg at least two fields:
 
 ## Authors
 
-* Main code: **Federico Haag** - [LinkedIn](https://www.linkedin.com/in/federicohaag/) - [Medium](https://medium.com/@federicohaag)
+* Base code: **Federico Haag** - [LinkedIn](https://www.linkedin.com/in/federicohaag/) - [Medium](https://medium.com/@federicohaag)
 * Contributor: **Laila Sprejer** - [LinkedIn](https://www.linkedin.com/in/lailasprejer/)
 
 ## Disclaimer
